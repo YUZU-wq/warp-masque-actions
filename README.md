@@ -255,11 +255,10 @@ Shadowrocket、Stash 不认 `dialer-proxy`，用不了套娃配置——
 Actions 那条要手动点一下才跑。如果想要它自己更新、随时有个 URL 能拿到最新配置，
 用 `worker/` 这份。
 
-一份聚合订阅，导进去有两类线路可切：
+一份聚合订阅，导进去有三类线路可切：
 
 - **亚洲 / 欧洲 / 美洲线路** — 走 MASQUE 再落 Opera，能换出口国家，多一跳会慢些
 - **WARP直连** — 只走 MASQUE，出口是 Cloudflare 自己的 IP，快但选不了国家
-- **Proton线路** — 配了 Proton 之后出现，下面按国家分组，可以直接选日本、新加坡等
 - **Windscribe线路** — 13 个地区，按地区分组。亚洲只有香港，但 Opera 那三个大区里没有
 
 套娃线路超时或某个落地挂了，切 WARP直连 顶上。这两类共用同一批 MASQUE
@@ -398,53 +397,6 @@ SurfEasy 的 API 不返回真实过期时间，所以按这个走，另外留了
 **客户端不认 dialer-proxy** — Shadowrocket、Stash 这类只支持 masque
 不支持链式出站，导进去只有 WARP直连 那组能用，套娃线路会报错。
 
-### Proton 落地（可选）
-
-Opera 只有三个大区，想要更多国家可以再挂一层 Proton。免费版 10 个国家：
-加拿大、瑞士、日本、墨西哥、荷兰、挪威、波兰、罗马尼亚、新加坡、美国。
-
-链路和 Opera 那条一样：`本机 → MASQUE → Proton WireGuard → 目标`。
-
-**为什么要多绕一圈流水线**
-
-Proton 必须账号登录，走的是 SRP 协议。这套在 Worker 里能算对（我验过 A 和 M1
-跟官方库逐字节一致），但提交时会被 Proton 的风控拦掉，非官方客户端指纹过不去。
-
-所以让 GitHub Actions 去登录、拿证书，再把结果推给 Worker。
-Worker 完全不碰 Proton 账号。
-
-**配置步骤**
-
-1. 注册一个 Proton 账号（免费版就行）
-2. 仓库 Settings → Secrets → 加 `PROTON_USER`（邮箱）和 `PROTON_PASS`（密码）
-3. Worker 管理页的「Proton 落地」区块，点`生成`拿到推送地址
-4. 把那个地址加成第三个 secret：`WORKER_PUSH_URL`
-5. 跑一次 `取 Proton 凭据` 流水线
-
-之后每 3 天自动续，不用再管。
-
-**账号开了 2FA 的话**
-
-前两个 secret 不够用，得再加一个 `PROTON_TOTP_SECRET`：Proton 账户设置 →
-双因素 → 验证器应用 → 导出密钥，把那串 base32 填进去（带
-`proton:totp/xxx:` 前缀的整串粘贴也没关系，脚本会自己剥）。
-
-没配这个 secret、账号又开着 2FA，日志会直接说"账号开了 2FA"并给出两条路：
-配密钥，或者去 Proton 后台关掉 2FA。用 FIDO2 硬件密钥做 2FA 的不行，
-Actions 里没法插 U 盘，得改用一个验证器应用。
-
-**关于证书有效期**
-
-Proton 的证书最长 7 天，`Duration` 写再长也封顶（实测 43200 min、525600 min
-返回的都是 7 天）。所以流水线每 3 天跑一次，留足余量。
-
-**推送地址的安全性**
-
-令牌在地址里，只能写 Proton 凭据，动不了管理页也拿不到订阅。
-泄露了在管理页点「换一个」，旧地址立刻失效。
-
-不配这部分也不影响，其他线路照常工作。
-
 ### Windscribe 落地（可选）
 
 Windscribe 的浏览器扩展用的是标准 HTTPS 代理，和 Opera 同一个形态，
@@ -482,9 +434,12 @@ runner 的 IP 干净。
 
 **配置步骤**
 
-和 Proton 共用同一个推送地址，不用再加 secret：
+推送地址在管理页的「Proton 落地」区块生成 —— 那区块的名字是历史遗留，
+Proton 流水线已经撤了，但 Windscribe 的推送地址就挂在这个区块里
+（Worker 端 `/push/<令牌>` 收 Proton、`/push/<令牌>/wind` 收 Windscribe，
+同一枚令牌两种用途）。
 
-1. 管理页「Proton 落地」那里生成推送地址，配进 `WORKER_PUSH_URL`
+1. 管理页那个区块点`生成`拿到推送地址，加成 secret：`WORKER_PUSH_URL`
 2. 跑一次 `取 Windscribe 账号` 流水线
 
 流水线会自己在地址末尾加 `/wind`。它开完号会先验一次能不能取到代理凭据，

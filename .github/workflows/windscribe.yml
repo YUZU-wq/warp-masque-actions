@@ -41,7 +41,8 @@ jobs:
             echo "没配 WORKER_PUSH_URL，跳过推送。账号在 artifact 里，可手动粘贴。"
             exit 0
           fi
-          # 和 Proton 共用一个推送地址，末尾加 /wind 区分
+          # Worker 端 /push/<令牌> 收 Proton、加 /wind 后缀收 Windscribe，
+          # 同一枚令牌两种用途。地址本身在管理页那个区块生成。
           CODE=$(curl -s -o /tmp/resp.json -w '%{http_code}' -X POST "${URL%/}/wind" \
             --data-binary @dist/wind-account.json)
           echo "HTTP $CODE"
@@ -60,8 +61,8 @@ jobs:
       - name: 摘要
         if: always()
         env:
-          # 和 proton.yml 同理：用比较表达式渲染出 true/false，
-          # 不让带令牌的推送地址原文进 run 脚本和 "Run" 日志。
+          # 用比较表达式渲染出 true/false：${{ secrets.X }} 直接插值进
+          # 脚本的话，渲染原文会出现在 step 开头的 "Run" 日志里。
           PUSH_SET: ${{ secrets.WORKER_PUSH_URL != '' }}
         run: |
           {
