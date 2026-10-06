@@ -423,6 +423,16 @@ Worker 完全不碰 Proton 账号。
 
 之后每 3 天自动续，不用再管。
 
+**账号开了 2FA 的话**
+
+前两个 secret 不够用，得再加一个 `PROTON_TOTP_SECRET`：Proton 账户设置 →
+双因素 → 验证器应用 → 导出密钥，把那串 base32 填进去（带
+`proton:totp/xxx:` 前缀的整串粘贴也没关系，脚本会自己剥）。
+
+没配这个 secret、账号又开着 2FA，日志会直接说"账号开了 2FA"并给出两条路：
+配密钥，或者去 Proton 后台关掉 2FA。用 FIDO2 硬件密钥做 2FA 的不行，
+Actions 里没法插 U 盘，得改用一个验证器应用。
+
 **关于证书有效期**
 
 Proton 的证书最长 7 天，`Duration` 写再长也封顶（实测 43200 min、525600 min
