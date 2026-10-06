@@ -59,6 +59,10 @@ jobs:
 
       - name: 摘要
         if: always()
+        env:
+          # 和 proton.yml 同理：用比较表达式渲染出 true/false，
+          # 不让带令牌的推送地址原文进 run 脚本和 "Run" 日志。
+          PUSH_SET: ${{ secrets.WORKER_PUSH_URL != '' }}
         run: |
           {
             echo '## Windscribe 账号'
@@ -68,7 +72,7 @@ jobs:
               GB=$(jq -r '.trafficMax/1073741824|floor*100/100' dist/wind-account.json)
               echo "账号 \`$UID_\`，额度 ${GB} GB"
               echo
-              if [ -n "${{ secrets.WORKER_PUSH_URL }}" ]; then
+              if [ "$PUSH_SET" = "true" ]; then
                 echo '已推送到 Worker，订阅里会出现 Windscribe 线路。'
               else
                 echo '没配 `WORKER_PUSH_URL`，账号在下面的 artifact 里。'

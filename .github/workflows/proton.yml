@@ -32,6 +32,8 @@ jobs:
         env:
           PROTON_USER: ${{ secrets.PROTON_USER }}
           PROTON_PASS: ${{ secrets.PROTON_PASS }}
+          # 可选。账号没开 2FA 就不用配，留空不影响。
+          PROTON_TOTP_SECRET: ${{ secrets.PROTON_TOTP_SECRET }}
         run: |
           set -euo pipefail
           if [ -z "${PROTON_USER:-}" ] || [ -z "${PROTON_PASS:-}" ]; then
@@ -60,24 +62,37 @@ jobs:
 
       - name: 摘要
         if: always()
+        env:
+          # 判断有没有配 secret，用比较表达式渲染出 true/false，
+          # 这样 secret 的原文（带令牌的推送地址、邮箱）一个字节都不会进日志。
+          # 直接写 ${{ secrets.X }} 是不行的：${{ }} 的渲染结果会出现在
+          # step 开头的 "Run" 里，掩码只遮注册值，照样泄露。
+          PUSH_SET: ${{ secrets.WORKER_PUSH_URL != '' }}
+          AUTH_SET: ${{ secrets.PROTON_USER != '' }}
         run: |
           {
             echo '## Proton 凭据'
             echo
-            if [ -s dist/proton-blob.txt ]; then
-              if [ -n "${{ secrets.WORKER_PUSH_URL }}" ]; then
-                echo '已自动推送到 Worker，配置随即更新。'
+            if [ ! -s dist/proton-blob.txt ]; then
+              if [ "$AUTH_SET" != "true" ]; then
+                echo '没配 PROTON_USER / PROTON_PASS 这两个 secret，流水线不会跑登录。'
+                echo '到 Settings > Secrets and variables > Actions 加上，再手动重跑本流水线。'
               else
-                echo '没配推送地址，复制下面这段粘贴到 Worker 管理页：'
-                echo
-                echo '```'
-                cat dist/proton-blob.txt
-                echo '```'
+                echo '生成失败，看上面的日志。'
               fi
+            elif [ "$PUSH_SET" = "true" ]; then
+              echo '证书到手。已自动推送到 Worker，配置随即更新。'
               echo
               echo '证书 7 天有效，本流水线每 3 天自动跑一次，不用手动管。'
             else
-              echo '生成失败，看上面的日志。'
+              echo '证书到手，但没配 WORKER_PUSH_URL，没推送。'
+              echo '复制下面这段粘贴到 Worker 管理页：'
+              echo
+              echo '```'
+              cat dist/proton-blob.txt
+              echo '```'
+              echo
+              echo '证书 7 天有效。'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
